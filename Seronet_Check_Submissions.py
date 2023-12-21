@@ -10,7 +10,8 @@ def lambda_handler(event, context):
     ssm = boto3.client("ssm")
     
     bucket = event["Records"][0]["s3"]["bucket"]["name"]            #bucket of the file, this is the destination bucket
-    file_path = event["Records"][0]["s3"]["object"]["key"]          #name of the file, this is Result_Message.tex
+    file_path = event["Records"][0]["s3"]["object"]["key"]          #name of the file, this is Result_Message.txt
+    file_path = file_path.replace("+", " ")     #spaces in file name are coverted to "+" this line corrects back to spaces
     
     # example file_path: 
     # cbc01/2023-04-20-12-59-25/submission_007_Prod_data_for_feinstein20230420_VaccinationProject_Batch9_shippingmanifest.zip/File_Validation_Results/Result_Message.txt
@@ -28,7 +29,7 @@ def lambda_handler(event, context):
         sheet_names = sheet_names[7:]
     except Exception as e:
         print(e)
-        print("submission.csv does not exist")
+        print(f"{bucket}/{Unzipped_key} does not exist")
 ############################################################################################################      
 ## if passed file-validation then move submission according to its submission.csv contents
 ## if submission.csv is missing will default to the accrual bucket but will be caught in validation email
@@ -39,8 +40,13 @@ def lambda_handler(event, context):
         dest_folder = "Accrual_Need_To_Validate"
     
     sub_path = file_path.replace("File_Validation_Results/Result_Message.txt", "")
+    # make sure the Result_Message.txt is the last one to be coppied
     all_files = s3_client.list_objects_v2(Bucket=bucket, Prefix=sub_path)["Contents"]
-    move_files = [i["Key"] for i in all_files]
+    all_files = [i["Key"] for i in all_files]
+    move_files = [i for i in all_files if "File_Validation_Results/Result_Message.txt" not in i]
+    result_message_key = [i for i in all_files if "File_Validation_Results/Result_Message.txt" in i]
+    move_files.append(result_message_key[0])
+    print(move_files)
     
     for curr_file in move_files:
         new_key = dest_folder + "/" + curr_file                     # new destination
